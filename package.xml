@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>wam_bringup</name>
+  <name>wam_interface</name>
   <version>0.0.0</version>
   <description>The wam_bringup package</description>
 

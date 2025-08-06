@@ -13,9 +13,9 @@ class WamModel(Robot):
     def __init__(self):
         # TODO: add DOF arg?
         rospack = rospkg.RosPack()
-        path = rospack.get_path("wam_bringup")
+        path = rospack.get_path("wam_interface")
         links, name, urdf_string, urdf_filepath = self.URDF_read(
-            "models/wam7dof/wam7dof_hand.urdf", tld=path
+            "models/wam7dof/wam7dof.urdf", tld=path
         )
 
         super().__init__(
@@ -25,6 +25,7 @@ class WamModel(Robot):
             urdf_string=urdf_string,
             urdf_filepath=urdf_filepath,
         )
+        print(self.hierarchy())
 
         # NOTE: not sure if i need to define these here, I think I don't?
         # self.qr = np.array([np.pi, -0.3, 0, -1.6, 0, -1.0, np.pi / 2])

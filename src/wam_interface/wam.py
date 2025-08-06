@@ -8,7 +8,7 @@ from geometry_msgs.msg import Pose, PoseStamped
 from sensor_msgs.msg import JointState
 from std_srvs.srv import Empty, EmptyRequest, EmptyResponse
 from std_msgs.msg import Bool
-from wam_model import WamModel
+from wam_interface.wam_model import WamModel
 from wam_msgs.msg import RTJointVel
 from wam_srvs.srv import JointMove, JointMoveRequest, JointMoveResponse, PoseMove, PoseMoveRequest, PoseMoveResponse
 
@@ -16,14 +16,23 @@ from wam_srvs.srv import JointMove, JointMoveRequest, JointMoveResponse, PoseMov
 # Limits for WAM
 # In degree TODO find these!
 
+    # J1 [2.65, -2.65]
+    # J2 [-2.02, 2.02]
+    # J3 [-2.72, 2.78]
+    # J4 [3.08, -0.80]
+    # J5 [-4.74, 1.23]
+    # J6 [-1.525, 1.48]
+    # J7 [-3.026, 2.93]
+
+# NOTE for now these are a bit lower than actual to be safe
 JOINT_LIMIT = {
-    0: [radians(-180.0), radians(180.0)],
-    1: [radians(-128.9), radians(128.9)],
-    2: [radians(-180.0), radians(180.0)],
-    3: [radians(-147.8), radians(147.8)],
-    4: [radians(-180.0), radians(180.0)],
-    5: [radians(-120.3), radians(120.3)],
-    6: [radians(-180.0), radians(180.0)],
+    0: [-2.5, 2.5],
+    1: [-1.9, 1.9],
+    2: [-2.5, 2.5],
+    3: [-0.7, 2.9],
+    4: [-4.5, 1.1],
+    5: [-1.4, 1.4],
+    6: [-2.9, 2.9],
 }
 
 JOINT_NAME_TO_ID = {
@@ -113,8 +122,11 @@ class WAM(object):
         self.pose_move_srv = rospy.ServiceProxy("/wam/pose_move", PoseMove)
         self.home_srv = rospy.ServiceProxy("/wam/go_home", Empty)
 
-        rospy.wait_for_service("/wam/joint_move_srv")
+        rospy.loginfo("Waiting for WAM services")
+        rospy.wait_for_service("/wam/joint_move")
         rospy.wait_for_service("/wam/go_home")
+        rospy.loginfo("WAM Ready")
+        
 
     def _joint_state_cb(self, msg: JointState):
         """Store joint angles inside the class instance."""
@@ -132,7 +144,6 @@ class WAM(object):
         """Send WAM to default home position."""
         req = EmptyRequest()
         resp = self.home_srv.call(req)
-        raise True
 
     def send_joint_angles(
         self,
@@ -151,7 +162,6 @@ class WAM(object):
             angles[i] = np.clip(
                 angles[i], a_min=JOINT_LIMIT[i][0], a_max=JOINT_LIMIT[i][1]
             )
-        
         srv = JointMoveRequest()
         srv.joints = angles
 
@@ -164,7 +174,6 @@ class WAM(object):
         vels: list,
     ):
         """Set velocity for each individual joint.
-        TODO: Might need to change max_rate to suit control frequency.
         """
         # Make sure angles is a numpy array
         if isinstance(vels, list):
@@ -172,7 +181,7 @@ class WAM(object):
 
         msg = RTJointVel()
         msg.velocities = vels
-        self.joint_vel_pub.publish()
+        self.joint_vel_pub.publish(msg)
 
     def send_twist(
         self,
@@ -204,14 +213,14 @@ class WAM(object):
         # TODO: not sure if I need jacob0 or jacob0_analytical.
         # https://petercorke.github.io/robotics-toolbox-python/arm_superclass.html#roboticstoolbox.robot.Robot.Robot.jacob0
         j_0 = self.wam_model.jacob0(
-            self.joints, end="bhand_base"
+            self.joints, end="SeventhLink"
         )
         q_dot = np.linalg.pinv(j_0) @ vels
 
         self.send_joint_velocities(q_dot)
 
     def send_pose(
-        self, x, y, z, theta_x, theta_y, theta_z
+        self, x, y, z, q
     ):
         """
         Sends a 3d pose to the wam
@@ -233,7 +242,7 @@ class WAM(object):
         msg.position.y = y
         msg.position.z = z
 
-        q = tf_conversions.transformations.quaternion_from_euler(theta_x, theta_y, theta_z, "sxyz") # TODO might be wrong conversion
+        # q = tf_conversions.transformations.quaternion_from_euler(theta_x, theta_y, theta_z, "sxyz") # TODO might be wrong conversion
         msg.orientation.x = q[0]
         msg.orientation.y = q[1]
         msg.orientation.z = q[2]
